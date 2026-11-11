@@ -147,14 +147,14 @@ function renderServers(snap) {
   for (const s of snap.servers ?? []) {
     list.append(
       el("li", { class: `server${s.leader ? " leader" : ""}` },
-        el("span", { class: "sigil", title: s.leader ? "leader" : "follower" }, s.leader ? "♛" : "†"),
+        el("span", { class: "role" }, s.leader ? "LEADER" : "FOLLOWER"),
         el("span", { class: "who" },
           el("strong", {}, s.id),
           el("small", {}, `${s.node}${s.leader ? " · leads" : s.watching ? ` · watches ${s.watching}` : ""}`)),
-        el("button", { class: "btn btn-quiet", title: "End its session, as a crash would", onclick: () => act("stopServer", { server: s.id }) }, "Fell")),
+        el("button", { class: "btn btn-quiet", title: "End its session, as a crash would", onclick: () => act("stopServer", { server: s.id }) }, "Stop")),
     );
   }
-  if (!snap.servers?.length) list.append(el("li", { class: "hint" }, "No server stands. Nothing can lock or write."));
+  if (!snap.servers?.length) list.append(el("li", { class: "hint" }, "No server runs. Clients cannot lock or write."));
 }
 
 function renderConf(snap) {
@@ -168,7 +168,7 @@ function renderConf(snap) {
     const value = snap.conf?.[key] ?? "?";
     box.append(
       el("div", { class: "conf-row" },
-        el("span", {}, el("code", {}, key), el("span", { class: "hint" }, ` ${text}`)),
+        el("span", {}, el("code", {}, key), el("span", { class: "hint" }, text)),
         el("span", { class: "stepper" },
           el("button", { class: "btn", "aria-label": `Lower ${key}`, onclick: () => act("setConf", { key, value: Number(value) - 1 }) }, "−"),
           el("output", {}, value),
@@ -199,7 +199,7 @@ function renderClients(snap) {
               e.stopPropagation();
               act("disconnect", { client: c.name });
             },
-          }, "Perish")),
+          }, "Disconnect")),
         el("p", { class: "client-status" }, c.status),
         c.locks.length
           ? el("div", { class: "tags" }, ...c.locks.map((l) => el("span", { class: `tag ${l.state} ${l.mode}`, title: l.error ?? "" }, `${l.mode} ${l.file} · ${l.state}`)))
@@ -220,13 +220,13 @@ function renderFiles(snap) {
   for (const f of snap.files ?? []) {
     const mine = lockOf(f.name);
     const readers = f.queue.filter((q) => q.state === "held" && q.mode === "read").length;
-    const seal = f.status === "write" ? "write lock" : f.status === "read" ? `read lock ×${readers}` : "free";
+    const badge = f.status === "write" ? "write lock" : f.status === "read" ? `read lock ×${readers}` : "free";
     const actions = [];
     const can = Boolean(state.active);
     if (!mine) {
       actions.push(
         el("button", { class: "btn", disabled: !can, onclick: () => act("lock", { client: state.active, file: f.name, mode: "read" }) }, "Ask to read"),
-        el("button", { class: "btn btn-crimson", disabled: !can, onclick: () => act("lock", { client: state.active, file: f.name, mode: "write" }) }, "Ask to write"),
+        el("button", { class: "btn btn-accent", disabled: !can, onclick: () => act("lock", { client: state.active, file: f.name, mode: "write" }) }, "Ask to write"),
       );
     } else if (mine.state === "waiting") {
       actions.push(el("button", { class: "btn", onclick: () => act("release", { client: state.active, file: f.name }) }, "Cancel the request"));
@@ -239,7 +239,7 @@ function renderFiles(snap) {
           },
         }, "Delete"));
       }
-      actions.push(el("button", { class: "btn btn-crimson", onclick: () => act("release", { client: state.active, file: f.name }) }, "Release"));
+      actions.push(el("button", { class: "btn btn-accent", onclick: () => act("release", { client: state.active, file: f.name }) }, "Release"));
     }
 
     const queue = el("ol", { class: "queue" },
@@ -260,7 +260,7 @@ function renderFiles(snap) {
 
     box.append(
       el("article", { class: `file status-${f.status}` },
-        el("div", { class: "file-head" }, el("h3", { class: "file-name" }, f.name), el("span", { class: "seal" }, seal)),
+        el("div", { class: "file-head" }, el("h3", { class: "file-name" }, f.name), el("span", { class: "badge" }, badge)),
         el("p", { class: "file-meta" }, `${f.meta.current || "no version"} · ${f.meta.size} B · sha256 ${f.meta.sha256?.slice(0, 10) ?? ""}…`),
         el("pre", { class: "preview" }, f.content || "(empty)"),
         el("p", { class: "queue-title" }, "Lock queue · ", el("code", {}, `/GZFAS/data/${f.name}/locks`)),
@@ -280,7 +280,7 @@ function renderTree(snap) {
     const born = state.known.size > 0 && !state.known.has(node.path);
     const line = el("div", { class: `znode${node.ephemeral ? " ephemeral" : ""}${born ? " born" : ""}`, role: "treeitem" },
       el("span", { class: "name" }, node.name),
-      node.ephemeral ? el("span", { class: "dagger", title: "ephemeral" }, "†") : null,
+      node.ephemeral ? el("span", { class: "eph", title: "ephemeral" }, "●") : null,
       node.data ? el("span", { class: "data", title: node.data }, node.data) : null,
       node.ephemeral ? el("span", { class: "owner" }, node.owner) : null,
       node.version ? el("span", { class: "ver" }, `v${node.version}`) : null);
@@ -432,59 +432,59 @@ async function prepare(clients) {
   for (const c of clients) await ensureClient(c);
   // Release every lock, so that an earlier scenario cannot block this one.
   await releaseAll(state.snapshot.clients.map((c) => c.name));
-  await ensureFile("grimoire.txt", "Chapter I: the order of locks.\n");
+  await ensureFile("notes.md", "Locks keep the order.\n");
 }
 
 const step = 1400;
 
-const RITES = [
+const SCENARIOS = [
   {
     name: "Readers share",
     async run() {
       await prepare(["ana", "bia"]);
       narrate(["ana"], " asks to read. GZFAS creates an ephemeral sequential znode under ", ["locks/"], ".");
-      await act("lock", { client: "ana", file: "grimoire.txt", mode: "read" });
+      await act("lock", { client: "ana", file: "notes.md", mode: "read" });
       await sleep(step);
       narrate(["bia"], " asks to read too. No write znode comes before hers, so she reads at the same time.");
-      await act("lock", { client: "bia", file: "grimoire.txt", mode: "read" });
+      await act("lock", { client: "bia", file: "notes.md", mode: "read" });
       await sleep(step);
-      narrate("Two read znodes hold the file. Look at the tree: both end with ", ["†"], ", they live only as long as their sessions.");
+      narrate("Two read znodes hold the file. Look at the tree: both have a ", ["●"], ": they live only as long as their sessions.");
     },
   },
   {
     name: "The writer waits",
     async run() {
       await prepare(["ana", "bia", "caio"]);
-      await lockAndWait("ana", "grimoire.txt", "read");
-      await lockAndWait("bia", "grimoire.txt", "read");
+      await lockAndWait("ana", "notes.md", "read");
+      await lockAndWait("bia", "notes.md", "read");
       narrate(["ana"], " and ", ["bia"], " read the file.");
       await sleep(step);
       narrate(["caio"], " asks to write. A writer must be first in the queue, so he waits and watches only the znode right before his.");
-      await act("lock", { client: "caio", file: "grimoire.txt", mode: "write" });
+      await act("lock", { client: "caio", file: "notes.md", mode: "write" });
       await sleep(step * 1.4);
       narrate(["bia"], " finishes. ZooKeeper fires the watch of caio, who checks again: ana still reads, so he watches her znode now.");
-      await act("release", { client: "bia", file: "grimoire.txt" });
+      await act("release", { client: "bia", file: "notes.md" });
       await sleep(step * 1.4);
       narrate(["ana"], " finishes. Caio is first now: he holds the write lock alone.");
-      await act("release", { client: "ana", file: "grimoire.txt" });
-      await waitHeld("caio", "grimoire.txt");
+      await act("release", { client: "ana", file: "notes.md" });
+      await waitHeld("caio", "notes.md");
       await sleep(step);
       narrate(["caio"], " writes a new version: a sequential znode under ", ["versions/"], ", then ", ["set -v"], " on the file znode.");
-      await act("write", { client: "caio", file: "grimoire.txt", content: "Chapter I: the order of locks.\nChapter II: the patience of writers.\n", note: "chapter II" });
+      await act("write", { client: "caio", file: "notes.md", content: "Locks keep the order.\nWriters wait for their turn.\n", note: "second line" });
       await sleep(step);
-      await act("release", { client: "caio", file: "grimoire.txt" });
+      await act("release", { client: "caio", file: "notes.md" });
       narrate("Caio releases. The file is free again.");
     },
   },
   {
-    name: "A client perishes",
+    name: "A client crashes",
     async run() {
       await prepare(["ana", "bia"]);
       narrate(["ana"], " takes the write lock.");
-      await lockAndWait("ana", "grimoire.txt", "write");
+      await lockAndWait("ana", "notes.md", "write");
       await sleep(step);
       narrate(["bia"], " asks to read, and waits for ana.");
-      await act("lock", { client: "bia", file: "grimoire.txt", mode: "read" });
+      await act("lock", { client: "bia", file: "notes.md", mode: "read" });
       await sleep(step * 1.3);
       narrate(["ana"], " crashes. Her session ends, and ZooKeeper deletes her ephemeral znodes: her client znode and her lock.");
       await act("disconnect", { client: "ana" });
@@ -497,14 +497,14 @@ const RITES = [
     async run() {
       await prepare([]);
       const leader = state.snapshot.servers.find((s) => s.leader);
-      narrate(["s1"], ", ", ["s2"], ", and ", ["s3"], " each own a znode under ", ["servers/"], ". The lowest leads; each other watches the one before it.");
+      narrate(["s1"], ", ", ["s2"], ", and ", ["s3"], " each own a znode under ", ["servers/"], ". The lowest one leads, and each other server watches the one before it.");
       await sleep(step * 1.3);
       if (leader) {
-        narrate("The leader ", [leader.id], " falls. Its session ends, ", ["/GZFAS/leader"], " goes, and the next server is notified.");
+        narrate("The leader ", [leader.id], " stops. Its session ends, ", ["/GZFAS/leader"], " goes, and the next server is notified.");
         await act("stopServer", { server: leader.id });
         await sleep(step * 1.3);
         const next = state.snapshot.servers.find((s) => s.leader);
-        narrate(next ? [next.id] : "Nobody", " now leads. Bring the fallen server back: it joins the end of the line.");
+        narrate(next ? [next.id] : "No server", " leads now. The stopped server starts again and joins the end of the line.");
         await sleep(step);
         await act("startServer", { server: leader.id });
       }
@@ -517,14 +517,14 @@ const RITES = [
       narrate("MAX_READ becomes ", ["2"], ": at most two readers of one file at the same time.");
       await act("setConf", { key: "MAX_READ", value: 2 });
       await sleep(step);
-      await lockAndWait("ana", "grimoire.txt", "read");
-      await lockAndWait("bia", "grimoire.txt", "read");
-      await act("lock", { client: "caio", file: "grimoire.txt", mode: "read" });
+      await lockAndWait("ana", "notes.md", "read");
+      await lockAndWait("bia", "notes.md", "read");
+      await act("lock", { client: "caio", file: "notes.md", mode: "read" });
       narrate(["caio"], " is the third reader, so he waits. He watches the whole ", ["locks/"], " folder for a free place.");
       await sleep(step * 1.4);
-      await act("release", { client: "ana", file: "grimoire.txt" });
+      await act("release", { client: "ana", file: "notes.md" });
       narrate(["ana"], " leaves, and ", ["caio"], " reads.");
-      await waitHeld("caio", "grimoire.txt");
+      await waitHeld("caio", "notes.md");
       await sleep(step);
       await act("setConf", { key: "MAX_READ", value: 3 });
       await releaseAll(["bia", "caio"]);
@@ -534,30 +534,30 @@ const RITES = [
     name: "Restore a version",
     async run() {
       await prepare(["bia"]);
-      await lockAndWait("bia", "grimoire.txt", "write");
-      narrate(["bia"], " holds the write lock, and writes a careless version.");
-      await act("write", { client: "bia", file: "grimoire.txt", content: "(the pages were torn out)\n", note: "oops" });
+      await lockAndWait("bia", "notes.md", "write");
+      narrate(["bia"], " holds the write lock, and writes a bad version.");
+      await act("write", { client: "bia", file: "notes.md", content: "(deleted by mistake)\n", note: "oops" });
       await sleep(step);
-      const first = state.snapshot.files.find((f) => f.name === "grimoire.txt").versions[0];
+      const first = state.snapshot.files.find((f) => f.name === "notes.md").versions[0];
       narrate("She restores ", [first.name], ". The old content becomes a new version: history only grows.");
-      await act("rollback", { client: "bia", file: "grimoire.txt", version: first.name });
+      await act("rollback", { client: "bia", file: "notes.md", version: first.name });
       await sleep(step);
-      await act("release", { client: "bia", file: "grimoire.txt" });
+      await act("release", { client: "bia", file: "notes.md" });
     },
   },
 ];
 
-function setupRites() {
-  const box = $("#rites");
-  for (const rite of RITES) {
-    const button = el("button", { class: "rite", type: "button" }, rite.name);
+function setupScenarios() {
+  const box = $("#scenarios");
+  for (const scenario of SCENARIOS) {
+    const button = el("button", { class: "scenario", type: "button" }, scenario.name);
     button.addEventListener("click", async () => {
       if (state.busy) return;
       state.busy = true;
       box.querySelectorAll("button").forEach((b) => (b.disabled = b !== button));
       button.setAttribute("aria-pressed", "true");
       try {
-        await rite.run();
+        await scenario.run();
       } catch (error) {
         narrate("The scenario stopped: ", error.message);
       } finally {
@@ -570,7 +570,7 @@ function setupRites() {
   }
   if (state.backend.canReset) {
     box.append(el("button", {
-      class: "rite", type: "button",
+      class: "scenario reset", type: "button",
       onclick: async () => {
         await state.backend.reset();
         $("#ledger").replaceChildren();
@@ -579,7 +579,7 @@ function setupRites() {
         await seed();
         narrate("A new, empty ZooKeeper tree.");
       },
-    }, "Begin again"));
+    }, "Reset"));
   }
 }
 
@@ -591,8 +591,8 @@ async function seed() {
   if (snap.clients.length || snap.files.length) return;
   try {
     for (const name of ["ana", "bia", "caio"]) await act("connect", { client: name });
-    await act("create", { client: "ana", file: "grimoire.txt", content: "Chapter I: the order of locks.\n" });
-    await act("create", { client: "bia", file: "ledger.csv", content: "date,reader,file\n2026-11-11,ana,grimoire.txt\n" });
+    await act("create", { client: "ana", file: "notes.md", content: "Locks keep the order.\n" });
+    await act("create", { client: "bia", file: "access.csv", content: "date,reader,file\n2026-11-11,ana,notes.md\n" });
   } catch {
     narrate("The demo data could not be created. The message in the corner says why.");
   }
@@ -609,7 +609,7 @@ async function start() {
   }
   $("#mode").textContent = state.backend.mode;
   state.backend.onCall(addCall);
-  setupRites();
+  setupScenarios();
   await seed();
   await refresh();
 }

@@ -5,32 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GZFAS · Go ZooKeeper File Access System</title>
     <meta name="description" content="A file access system coordinated by ZooKeeper: readers-writer locks, versions, and leader election, shown live, znode by znode." />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='10' fill='%230b090a'/><path d='M32 8 L36 26 L54 32 L36 38 L32 56 L28 38 L10 32 L28 26 Z' fill='%23b8975a'/></svg>" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%2306080b'/><circle cx='32' cy='32' r='14' fill='none' stroke='%234fd1ff' stroke-width='4'/><circle cx='32' cy='32' r='4' fill='%234fd1ff'/></svg>" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=UnifrakturMaguntia&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <header class="masthead">
-      <div class="crest">
-        <h1>GZFAS</h1>
-        <p class="motto">Go · ZooKeeper · File Access System</p>
+      <div class="brand">
+        <h1>GZ<span>FAS</span></h1>
+        <p class="motto">Go ZooKeeper File Access System</p>
       </div>
-      <p class="mode" id="mode">Waking ZooKeeper…</p>
+      <p class="mode" id="mode">Connecting to ZooKeeper…</p>
       <nav class="links">
         <a href="#how">How it works</a>
         <a href="https://github.com/rahelmartim/gzfas" target="_blank" rel="noopener noreferrer">Source</a>
       </nav>
     </header>
 
-    <section class="rites" aria-label="Scenarios">
-      <span class="label">Scenarios</span>
-      <div class="rite-list" id="rites"></div>
-      <p class="narration" id="narration" aria-live="polite">Choose a scenario, or act by hand: pick a client, then lock a file.</p>
+    <section class="scenarios" aria-label="Scenarios">
+      <div class="scenarios-inner">
+        <span class="label">Scenarios</span>
+        <div class="scenario-list" id="scenarios"></div>
+        <p class="narration" id="narration" aria-live="polite">Run a scenario, or do it by hand: choose a client, then lock a file.</p>
+      </div>
     </section>
 
-    <main class="nave">
+    <main class="board">
       <!-- Servers, configuration, clients -->
       <section class="column">
         <article class="panel">
@@ -41,7 +43,7 @@
           <ol class="servers" id="servers"></ol>
           <form class="inline" id="server-form">
             <input name="server" placeholder="server name" maxlength="48" autocomplete="off" aria-label="Server name" />
-            <button class="btn">Raise</button>
+            <button class="btn">Add</button>
           </form>
         </article>
 
@@ -83,17 +85,17 @@
       </section>
 
       <!-- ZooKeeper -->
-      <section class="column">
+      <section class="column column-side">
         <article class="panel">
           <header class="panel-head">
-            <h2>The tree</h2>
-            <span class="hint"><span class="dagger">†</span> ephemeral</span>
+            <h2>Znode tree</h2>
+            <span class="hint"><span class="eph">●</span> ephemeral</span>
           </header>
           <div class="tree" id="tree" role="tree"></div>
         </article>
         <article class="panel">
           <header class="panel-head">
-            <h2>The ledger</h2>
+            <h2>ZooKeeper calls</h2>
             <label class="hint check"><input type="checkbox" id="quiet" checked /> hide reads</label>
           </header>
           <ol class="ledger" id="ledger" aria-live="off"></ol>
@@ -101,9 +103,9 @@
       </section>
     </main>
 
-    <section class="codex" id="how">
+    <section class="explain" id="how">
       <h2>How ZooKeeper keeps the order</h2>
-      <div class="codex-grid">
+      <div class="explain-grid">
         <article>
           <h3>Locks</h3>
           <p>
@@ -133,25 +135,25 @@
           <p>
             Servers create <code>servers/n-</code> znodes. The lowest one leads and writes the ephemeral
             <code>/GZFAS/leader</code>. Each other server watches the server before it. When the leader falls,
-            the next one rises.
+            the next one leads.
           </p>
         </article>
       </div>
     </section>
 
-    <footer class="colophon">
-      <span>◆</span> Made in Go <span>◆</span> by <a href="https://github.com/rahelmartim" target="_blank" rel="noopener noreferrer">rahelmartim</a> <span>◆</span>
+    <footer class="footer">
+      Made in Go by <a href="https://github.com/rahelmartim" target="_blank" rel="noopener noreferrer">rahelmartim</a>
     </footer>
 
-    <dialog class="scroll" id="dialog">
-      <form method="dialog" class="scroll-body" id="dialog-form">
+    <dialog class="modal" id="dialog">
+      <form method="dialog" class="modal-body" id="dialog-form">
         <h2 id="dialog-title"></h2>
         <p class="hint" id="dialog-meta"></p>
         <textarea id="dialog-content" rows="12" maxlength="65536" aria-label="File content"></textarea>
         <input id="dialog-note" placeholder="note for this version" maxlength="200" aria-label="Version note" />
-        <div class="scroll-actions">
+        <div class="modal-actions">
           <button class="btn" value="close">Close</button>
-          <button class="btn btn-crimson" id="dialog-save" value="save">Save a new version</button>
+          <button class="btn btn-accent" id="dialog-save" value="save">Save a new version</button>
         </div>
       </form>
     </dialog>
