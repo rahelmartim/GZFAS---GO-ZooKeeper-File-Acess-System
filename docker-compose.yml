@@ -1,0 +1,28 @@
+# ZooKeeper and the GZFAS dashboard.
+# Start: docker compose up --build
+# Open:  http://localhost:8080
+services:
+  zookeeper:
+    image: zookeeper:3.9
+    environment:
+      ZOO_4LW_COMMANDS_WHITELIST: ruok
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep imok"]
+      interval: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:2181:2181"
+
+  gzfas:
+    build: .
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    restart: on-failure
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - gzfas-data:/data
+
+volumes:
+  gzfas-data:
